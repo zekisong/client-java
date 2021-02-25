@@ -186,7 +186,6 @@ public class RegionManager {
 
   public void onRequestFail(long regionId, long storeId) {
     cache.invalidateRegion(regionId);
-    cache.invalidateAllRegionForStore(storeId);
   }
 
   public void invalidateStore(long storeId) {

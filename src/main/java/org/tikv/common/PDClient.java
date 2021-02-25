@@ -494,13 +494,11 @@ public class PDClient extends AbstractGRPCClient<PDBlockingStub, PDStub>
   }
 
   @Override
-  protected PDBlockingStub getBlockingStub() {
+  protected PDBlockingStub getBlockingStubImpl(int timeout, TimeUnit unit) {
     if (leaderWrapper == null) {
       throw new GrpcException("PDClient may not be initialized");
     }
-    return leaderWrapper
-        .getBlockingStub()
-        .withDeadlineAfter(getConf().getTimeout(), getConf().getTimeoutUnit());
+    return leaderWrapper.getBlockingStubImpl(timeout, unit);
   }
 
   @Override
@@ -573,8 +571,8 @@ public class PDClient extends AbstractGRPCClient<PDBlockingStub, PDStub>
       return leaderInfo;
     }
 
-    PDBlockingStub getBlockingStub() {
-      return blockingStub;
+    PDBlockingStub getBlockingStubImpl(int timeout, TimeUnit unit) {
+      return blockingStub.withDeadlineAfter(timeout, unit);
     }
 
     PDStub getAsyncStub() {

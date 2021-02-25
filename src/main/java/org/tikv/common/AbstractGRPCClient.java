@@ -22,6 +22,8 @@ import io.grpc.MethodDescriptor;
 import io.grpc.stub.AbstractStub;
 import io.grpc.stub.ClientCalls;
 import io.grpc.stub.StreamObserver;
+
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +42,7 @@ public abstract class AbstractGRPCClient<
   protected TiConfiguration conf;
   protected BlockingStubT blockingStub;
   protected StubT asyncStub;
+  protected int timeout;
 
   protected AbstractGRPCClient(TiConfiguration conf, ChannelFactory channelFactory) {
     this.conf = conf;
@@ -157,7 +160,18 @@ public abstract class AbstractGRPCClient<
     return response;
   }
 
-  protected abstract BlockingStubT getBlockingStub();
+  protected BlockingStubT getBlockingStub() {
+      return getBlockingStubImpl(getTimeout(), getConf().getTimeoutUnit());
+  }
 
+  public void setTimeout(int t) {
+      timeout = t;
+  }
+
+  protected int getTimeout() {
+      return timeout;
+  }
+
+  protected abstract BlockingStubT getBlockingStubImpl(int timeout, TimeUnit unit);
   protected abstract StubT getAsyncStub();
 }

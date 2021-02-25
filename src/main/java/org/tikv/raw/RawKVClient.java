@@ -50,7 +50,7 @@ public class RawKVClient implements AutoCloseable {
   private final ExecutorService deleteRangeThreadPool;
   private static final Logger logger = LoggerFactory.getLogger(RawKVClient.class);
 
-  private static final int MAX_RETRY_LIMIT = 3;
+  private static final int MAX_RETRY_LIMIT = 20;
   // https://www.github.com/pingcap/tidb/blob/master/store/tikv/rawkv.go
   private static final int MAX_RAW_SCAN_LIMIT = 10240;
   private static final int RAW_BATCH_PUT_SIZE = 1024 * 1024; // 1 MB

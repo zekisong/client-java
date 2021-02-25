@@ -28,6 +28,8 @@ import org.tikv.common.util.ChannelFactory;
 import org.tikv.kvproto.Metapb;
 import org.tikv.kvproto.TikvGrpc;
 
+import java.util.concurrent.TimeUnit;
+
 public abstract class AbstractRegionStoreClient
     extends AbstractGRPCClient<TikvGrpc.TikvBlockingStub, TikvGrpc.TikvStub>
     implements RegionErrorReceiver {
@@ -55,8 +57,8 @@ public abstract class AbstractRegionStoreClient
   }
 
   @Override
-  protected TikvGrpc.TikvBlockingStub getBlockingStub() {
-    return blockingStub.withDeadlineAfter(getConf().getTimeout(), getConf().getTimeoutUnit());
+  protected TikvGrpc.TikvBlockingStub getBlockingStubImpl(int timeout, TimeUnit unit) {
+    return blockingStub.withDeadlineAfter(timeout, unit);
   }
 
   @Override

@@ -96,7 +96,7 @@ public class ConcreteBackOffer implements BackOffer {
         backOffFunction = BackOffFunction.create(2000, 10000, BackOffStrategy.EqualJitter);
         break;
       case BoRegionMiss:
-        backOffFunction = BackOffFunction.create(100, 500, BackOffStrategy.NoJitter);
+        backOffFunction = BackOffFunction.create(100, 4000, BackOffStrategy.NoJitter);
         break;
       case BoTxnLock:
         backOffFunction = BackOffFunction.create(200, 3000, BackOffStrategy.EqualJitter);

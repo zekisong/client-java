@@ -14,6 +14,7 @@ public class BackOffFunction {
     this.base = base;
     this.cap = cap;
     this.strategy = strategy;
+    this.attempts = 0;
     lastSleep = base;
   }
 
