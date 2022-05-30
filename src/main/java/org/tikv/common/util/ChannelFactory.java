@@ -22,8 +22,11 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import java.io.File;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.net.ssl.SSLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,12 +34,16 @@ import org.tikv.common.HostMapping;
 import org.tikv.common.pd.PDUtils;
 
 public class ChannelFactory implements AutoCloseable {
-  private static final Logger logger = LoggerFactory.getLogger(ChannelFactory.class);
 
+  private static final Logger logger = LoggerFactory.getLogger(ChannelFactory.class);
+  private static final int CHANNEL_SIZE =
+      Integer.valueOf(System.getProperty("tikv_channel_size", "1"));
   private final int maxFrameSize;
   private final int keepaliveTime;
   private final int keepaliveTimeout;
-  private final ConcurrentHashMap<String, ManagedChannel> connPool = new ConcurrentHashMap<>();
+  private final AtomicLong counter = new AtomicLong();
+  private final ConcurrentHashMap<String, List<ManagedChannel>> connPool =
+      new ConcurrentHashMap<>();
   private final SslContextBuilder sslContextBuilder;
 
   public ChannelFactory(int maxFrameSize, int keepaliveTime, int keepaliveTimeout) {
@@ -73,51 +80,59 @@ public class ChannelFactory implements AutoCloseable {
   }
 
   public ManagedChannel getChannel(String addressStr, HostMapping hostMapping) {
-    return connPool.computeIfAbsent(
-        addressStr,
-        key -> {
-          URI address;
-          URI mappedAddr;
-          try {
-            address = PDUtils.addrToUri(key);
-          } catch (Exception e) {
-            throw new IllegalArgumentException("failed to form address " + key, e);
-          }
-          try {
-            mappedAddr = hostMapping.getMappedURI(address);
-          } catch (Exception e) {
-            throw new IllegalArgumentException("failed to get mapped address " + address, e);
-          }
+    return connPool
+        .computeIfAbsent(
+            addressStr,
+            key -> {
+              List<ManagedChannel> channels = new ArrayList();
+              for (int i = 0; i < CHANNEL_SIZE; i++) {
+                channels.add(initChannel(addressStr, hostMapping));
+              }
+              return channels;
+            })
+        .get((int) (counter.incrementAndGet() % CHANNEL_SIZE));
+  }
 
-          // Channel should be lazy without actual connection until first call
-          // So a coarse grain lock is ok here
-          NettyChannelBuilder builder =
-              NettyChannelBuilder.forAddress(mappedAddr.getHost(), mappedAddr.getPort())
-                  .maxInboundMessageSize(maxFrameSize)
-                  .keepAliveTime(keepaliveTime, TimeUnit.SECONDS)
-                  .keepAliveTimeout(keepaliveTimeout, TimeUnit.SECONDS)
-                  .keepAliveWithoutCalls(true)
-                  .idleTimeout(60, TimeUnit.SECONDS);
+  private ManagedChannel initChannel(String addressStr, HostMapping hostMapping) {
+    URI address;
+    URI mappedAddr;
+    try {
+      address = PDUtils.addrToUri(addressStr);
+    } catch (Exception e) {
+      throw new IllegalArgumentException("failed to form address " + addressStr, e);
+    }
+    try {
+      mappedAddr = hostMapping.getMappedURI(address);
+    } catch (Exception e) {
+      throw new IllegalArgumentException("failed to get mapped address " + address, e);
+    }
 
-          if (sslContextBuilder == null) {
-            return builder.usePlaintext(true).build();
-          } else {
-            SslContext sslContext = null;
-            try {
-              sslContext = sslContextBuilder.build();
-            } catch (SSLException e) {
-              logger.error("create ssl context failed!", e);
-              return null;
-            }
-            return builder.sslContext(sslContext).build();
-          }
-        });
+    // Channel should be lazy without actual connection until first call
+    // So a coarse grain lock is ok here
+    NettyChannelBuilder builder =
+        NettyChannelBuilder.forAddress(mappedAddr.getHost(), mappedAddr.getPort())
+            .maxInboundMessageSize(maxFrameSize)
+            .keepAliveTime(keepaliveTime, TimeUnit.SECONDS)
+            .keepAliveTimeout(keepaliveTimeout, TimeUnit.SECONDS)
+            .keepAliveWithoutCalls(true)
+            .idleTimeout(60, TimeUnit.SECONDS);
+
+    if (sslContextBuilder == null) {
+      return builder.usePlaintext(true).build();
+    } else {
+      SslContext sslContext = null;
+      try {
+        sslContext = sslContextBuilder.build();
+      } catch (SSLException e) {
+        logger.error("create ssl context failed!", e);
+        return null;
+      }
+      return builder.sslContext(sslContext).build();
+    }
   }
 
   public void close() {
-    for (ManagedChannel ch : connPool.values()) {
-      ch.shutdown();
-    }
+    connPool.values().forEach(chs -> chs.forEach(ch -> ch.shutdown()));
     connPool.clear();
   }
 }

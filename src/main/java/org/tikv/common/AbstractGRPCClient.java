@@ -40,7 +40,7 @@ import org.tikv.common.util.ChannelFactory;
 public abstract class AbstractGRPCClient<
         BlockingStubT extends AbstractStub<BlockingStubT>, StubT extends AbstractStub<StubT>>
     implements AutoCloseable {
-  protected final Logger logger = LoggerFactory.getLogger(this.getClass());
+  protected static final Logger logger = LoggerFactory.getLogger(AbstractGRPCClient.class);
   protected final ChannelFactory channelFactory;
   protected TiConfiguration conf;
   protected long timeout;
